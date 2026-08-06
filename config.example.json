@@ -1,0 +1,8 @@
+{
+  "email": "your-account@gmail.com",
+  "password": "your-password",
+  "headless": false,
+  "storage_state_path": "notebooklm_session.json",
+  "login_timeout_ms": 120000,
+  "notebooklm_url": "https://notebooklm.google.com/"
+}

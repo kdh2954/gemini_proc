@@ -1,1 +1,12 @@
 .gemini/
+
+# NotebookLM 로그인 스크립트 - 자격증명/세션 파일 (커밋 금지)
+config.json
+notebooklm_session.json
+*.session.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
