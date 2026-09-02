@@ -5,11 +5,14 @@ import { z } from "zod";
 import { performLogin } from "./tools/login.js";
 import { checkLoginStatus } from "./tools/status.js";
 import { performLogout } from "./tools/logout.js";
+import { registerNotionTools } from "./tools/notion.js";
 
 const server = new McpServer({
   name: "notebooklm-mcp",
   version: "0.1.0",
 });
+
+registerNotionTools(server);
 
 server.registerTool(
   "notebooklm_login",
