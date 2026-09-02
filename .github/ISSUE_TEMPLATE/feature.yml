@@ -1,0 +1,30 @@
+name: 기능 요청 (Feature)
+description: 새로운 기능을 제안합니다
+labels: ["type: feature"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: 설명
+      description: 원하는 기능을 설명해주세요
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 개발 영역
+      options:
+        - frontend
+        - backend
+    validations:
+      required: false
+  - type: dropdown
+    id: complexity
+    attributes:
+      label: 예상 복잡도
+      options:
+        - easy
+        - medium
+        - hard
+    validations:
+      required: false
