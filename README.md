@@ -31,6 +31,20 @@ npx playwright install chromium
 git에 커밋되지 않습니다. 저장 위치는 `NOTEBOOKLM_MCP_SESSION_PATH` 환경
 변수로 바꿀 수 있습니다.
 
+## 로그
+
+MCP 서버는 stdio(표준 입출력)를 프로토콜 통신에 사용하므로 디버깅용 로그를
+stdout에 출력하지 않고 파일로 남깁니다. 기본 로그 파일 위치는
+`~/.notebooklm-mcp/mcp-server.log`이며, 아래 환경 변수로 조절할 수 있습니다.
+
+| 환경 변수 | 설명 | 기본값 |
+| --- | --- | --- |
+| `NOTEBOOKLM_MCP_LOG_PATH` | 로그 파일 경로 | `~/.notebooklm-mcp/mcp-server.log` |
+| `NOTEBOOKLM_MCP_LOG_LEVEL` | `debug` \| `info` \| `warn` \| `error` | `info` |
+
+로그 파일은 `*.log` 패턴으로 `.gitignore`에 포함되어 있어 실수로 커밋되지
+않습니다.
+
 ## Claude Desktop / MCP 클라이언트 설정 예시
 
 ```json

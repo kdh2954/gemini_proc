@@ -5,6 +5,7 @@ import { z } from "zod";
 import { performLogin } from "./tools/login.js";
 import { checkLoginStatus } from "./tools/status.js";
 import { performLogout } from "./tools/logout.js";
+import { logger } from "./logger.js";
 
 const server = new McpServer({
   name: "notebooklm-mcp",
@@ -30,12 +31,15 @@ server.registerTool(
     },
   },
   async ({ timeoutSeconds }) => {
+    logger.info("notebooklm_login 호출", { timeoutSeconds });
     try {
       const message = await performLogin(
         timeoutSeconds ? timeoutSeconds * 1000 : undefined
       );
+      logger.info("notebooklm_login 성공");
       return { content: [{ type: "text", text: message }] };
     } catch (error) {
+      logger.error("notebooklm_login 실패", error);
       return {
         content: [
           { type: "text", text: `로그인 실패: ${(error as Error).message}` },
@@ -55,10 +59,13 @@ server.registerTool(
     inputSchema: {},
   },
   async () => {
+    logger.info("notebooklm_login_status 호출");
     try {
       const message = await checkLoginStatus();
+      logger.info("notebooklm_login_status 성공");
       return { content: [{ type: "text", text: message }] };
     } catch (error) {
+      logger.error("notebooklm_login_status 실패", error);
       return {
         content: [
           {
@@ -80,10 +87,13 @@ server.registerTool(
     inputSchema: {},
   },
   async () => {
+    logger.info("notebooklm_logout 호출");
     try {
       const message = performLogout();
+      logger.info("notebooklm_logout 성공");
       return { content: [{ type: "text", text: message }] };
     } catch (error) {
+      logger.error("notebooklm_logout 실패", error);
       return {
         content: [
           { type: "text", text: `로그아웃 실패: ${(error as Error).message}` },
@@ -97,9 +107,11 @@ server.registerTool(
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  logger.info(`notebooklm-mcp 서버 시작 (로그 파일: ${logger.getLogPath()})`);
 }
 
 main().catch((error) => {
+  logger.error("notebooklm-mcp 서버 시작 실패", error);
   console.error("notebooklm-mcp 서버 시작 실패:", error);
   process.exit(1);
 });

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import type { Page, BrowserContext } from "playwright";
 import { launchBrowser, NOTEBOOKLM_URL } from "../browser.js";
 import { ensureSessionDir, getSessionPath } from "../session.js";
+import { logger } from "../logger.js";
 
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000; // 5분
 const POLL_INTERVAL_MS = 1500;
@@ -26,6 +27,7 @@ async function waitForLogin(
 
   while (Date.now() < deadline) {
     if (page.isClosed()) {
+      logger.warn("로그인 창이 완료되기 전에 닫힘");
       throw new Error(
         "로그인 창이 완료되기 전에 닫혔습니다. notebooklm_login을 다시 실행해주세요."
       );
@@ -51,6 +53,7 @@ async function waitForLogin(
     await page.waitForTimeout(POLL_INTERVAL_MS);
   }
 
+  logger.warn(`로그인 대기 시간 초과 (${Math.round(timeoutMs / 1000)}초)`);
   throw new Error(
     `로그인 대기 시간(${Math.round(timeoutMs / 1000)}초)을 초과했습니다. ` +
       "브라우저 창에서 로그인을 완료한 뒤 notebooklm_login을 다시 실행해주세요."
@@ -73,6 +76,7 @@ export async function performLogin(timeoutMs = DEFAULT_TIMEOUT_MS): Promise<stri
     ensureSessionDir();
     const sessionPath = getSessionPath();
     await context.storageState({ path: sessionPath });
+    logger.info(`로그인 세션 저장 완료: ${sessionPath}`);
 
     return `NotebookLM 로그인에 성공했습니다. 세션이 저장되었습니다: ${sessionPath}`;
   } finally {
