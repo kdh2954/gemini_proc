@@ -1,5 +1,12 @@
 # notebooklm-mcp
 
+> ⚠️ **권장**: NotebookLM(Gemini Notebook) 자동화가 필요하다면, 이 저장소의
+> 자체 로그인 도구 대신 공식 `nlm` CLI/MCP 서버 사용을 권장합니다
+> (`pip install`로 설치, `nlm setup add claude-code`로 Claude Code에 등록).
+> 이 저장소의 브라우저 기반 로그인(`notebooklm_login` 등)은 Google의 자동화
+> 브라우저 차단(패스키/키체인/봇 감지)으로 인해 안정적으로 로그인이 되지
+> 않는 것으로 확인되었습니다. 아래 내용은 참고용으로 남겨둡니다.
+
 NotebookLM에는 공식 공개 API가 없기 때문에, 브라우저 자동화(Playwright)로
 Google 계정 로그인 세션을 만들고 이를 재사용해 NotebookLM을 조작하는
 MCP(Model Context Protocol) 서버입니다.
