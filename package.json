@@ -1,0 +1,31 @@
+{
+  "name": "notebooklm-mcp",
+  "version": "0.1.0",
+  "description": "NotebookLM을 브라우저 자동화로 조작하는 MCP(Model Context Protocol) 서버",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "notebooklm-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -w -p tsconfig.json",
+    "start": "node dist/index.js",
+    "postinstall": "playwright install chromium || echo 'Chromium 자동 설치에 실패했습니다. npx playwright install chromium 을 직접 실행해주세요.'"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "playwright": "^1.49.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

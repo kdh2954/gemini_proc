@@ -1,0 +1,20 @@
+name: 테스트 (Test)
+description: 테스트 작성/보완이 필요한 내용을 작성합니다
+labels: ["type: test"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: 설명
+      description: 어떤 테스트를 작성/보완해야 하는지 설명해주세요
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 개발 영역
+      options:
+        - frontend
+        - backend
+    validations:
+      required: false

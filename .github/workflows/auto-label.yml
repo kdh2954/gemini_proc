@@ -1,0 +1,49 @@
+name: Auto Label Issues
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const title = (context.payload.issue.title || "").toLowerCase();
+            const body = (context.payload.issue.body || "").toLowerCase();
+            const text = `${title}\n${body}`;
+
+            const labels = [];
+
+            // 개발 영역
+            if (/\bfrontend\b|프런트엔드|프론트엔드|\bui\b/.test(text)) labels.push("area: frontend");
+            if (/\bbackend\b|백엔드|\bapi\b|서버/.test(text)) labels.push("area: backend");
+
+            // 복잡도
+            if (/\bhard\b|복잡/.test(text)) labels.push("complexity: hard");
+            else if (/\bmedium\b|보통/.test(text)) labels.push("complexity: medium");
+            else if (/\beasy\b|쉬움|쉬운/.test(text)) labels.push("complexity: easy");
+
+            // 작업 유형 (이슈 템플릿이 이미 labels를 지정한 경우 중복 방지)
+            const existing = context.payload.issue.labels.map(l => l.name);
+            if (!existing.some(l => l.startsWith("type:"))) {
+              if (/\bdocs?\b|문서/.test(text)) labels.push("type: docs");
+              else if (/\btest(s|ing)?\b|테스트/.test(text)) labels.push("type: test");
+              else if (/\bfeature\b|기능/.test(text)) labels.push("type: feature");
+            }
+
+            const newLabels = [...new Set(labels)].filter(l => !existing.includes(l));
+
+            if (newLabels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.issue.number,
+                labels: newLabels,
+              });
+            }
