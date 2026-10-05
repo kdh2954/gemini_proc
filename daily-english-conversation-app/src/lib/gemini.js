@@ -1,7 +1,8 @@
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
-export const DEFAULT_MODEL = 'gemini-2.5-flash'
+export const DEFAULT_MODEL = 'gemini-3-flash-preview'
 
 // ListModels로 실제 확인됨: 이 모델이 generateContent를 지원한다(2026-10 기준).
+// gemini-2.5-flash는 ListModels에는 나오지만 신규 계정에는 generateContent가 404로 막혀 있었다.
 // generateContent의 responseSchema.type은 반드시 대문자 enum(STRING/OBJECT/ARRAY)이어야 한다.
 const CONVERSATION_SCHEMA = {
   type: 'OBJECT',
