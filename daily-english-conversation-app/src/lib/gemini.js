@@ -90,11 +90,23 @@ const RETRYABLE_STATUS = [429, 500, 503, 504]
 const MAX_ATTEMPTS = 3
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-function extractErrorMessage(body, status) {
-  let message = body?.error?.message ?? `Gemini API 요청 실패 (HTTP ${status})`
-  if (body?.error?.status) message += ` [${body.error.status}]`
-  const reasons = (body?.error?.details ?? []).map((d) => d?.reason).filter(Boolean)
-  if (reasons.length > 0) message += ` - reason: ${reasons.join(', ')}`
+function extractErrorMessage(status, rawText) {
+  let body = null
+  try {
+    body = JSON.parse(rawText)
+  } catch {
+    // rawText가 JSON이 아닌 경우(HTML 에러 페이지 등) 아래에서 원문을 그대로 보여준다.
+  }
+
+  let message = `(HTTP ${status}) `
+  if (body?.error?.message) {
+    message += body.error.message
+    if (body.error.status) message += ` [${body.error.status}]`
+    const reasons = (body?.error?.details ?? []).map((d) => d?.reason).filter(Boolean)
+    if (reasons.length > 0) message += ` - reason: ${reasons.join(', ')}`
+  } else {
+    message += rawText ? rawText.slice(0, 500) : 'Gemini API 요청 실패 (응답 본문 없음)'
+  }
   return message
 }
 
@@ -115,14 +127,8 @@ async function requestOnce({ apiKey, model, prompt }) {
   })
 
   if (!res.ok) {
-    let message = `Gemini API 요청 실패 (HTTP ${res.status})`
-    try {
-      const errBody = await res.json()
-      message = extractErrorMessage(errBody, res.status)
-    } catch {
-      // ignore parse failure, keep default message
-    }
-    throw new GeminiError(message, res.status)
+    const rawText = await res.text().catch(() => '')
+    throw new GeminiError(extractErrorMessage(res.status, rawText), res.status)
   }
 
   const data = await res.json()
@@ -181,8 +187,8 @@ export async function validateApiKey({ apiKey, model = DEFAULT_MODEL }) {
     const url = `${API_BASE}/models/${encodeURIComponent(model)}`
     const res = await fetch(url, { headers: { 'x-goog-api-key': apiKey } })
     if (!res.ok) {
-      const body = await res.json().catch(() => null)
-      return { ok: false, message: extractErrorMessage(body, res.status) }
+      const rawText = await res.text().catch(() => '')
+      return { ok: false, message: extractErrorMessage(res.status, rawText) }
     }
     return { ok: true }
   } catch (e) {
