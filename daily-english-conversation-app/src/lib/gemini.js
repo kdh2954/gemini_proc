@@ -189,6 +189,26 @@ export async function listAvailableModels({ apiKey }) {
   }))
 }
 
+// responseSchema 없이 아주 단순한 텍스트 생성만 시도해, 문제가 스키마 때문인지
+// 아니면 그보다 더 기본적인 요청 구조 때문인지 가려내기 위한 진단용 함수.
+export async function testSimpleGeneration({ apiKey, model }) {
+  if (!apiKey) throw new Error('API 키를 입력해주세요.')
+  const res = await fetch(`${API_BASE}/models/${encodeURIComponent(model)}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: 'Say hello in one short sentence.' }] }],
+    }),
+  })
+  const rawText = await res.text().catch(() => '')
+  if (!res.ok) {
+    throw new GeminiError(extractErrorMessage(res.status, rawText), res.status)
+  }
+  const data = JSON.parse(rawText)
+  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? ''
+  return text || '(빈 응답)'
+}
+
 export async function validateApiKey({ apiKey, model = DEFAULT_MODEL }) {
   if (!apiKey) return { ok: false, message: 'API 키를 입력해주세요.' }
   try {
