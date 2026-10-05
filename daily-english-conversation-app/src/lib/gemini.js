@@ -12,17 +12,17 @@ const CONVERSATION_SCHEMA = {
       items: {
         type: 'OBJECT',
         properties: {
-          title_ko: { type: 'STRING', description: '상황을 나타내는 한국어 제목 (예: 카페에서 주문하기)' },
-          title_en: { type: 'STRING', description: 'English title of the situation' },
-          category: { type: 'STRING', description: '카테고리 (예: 카페, 공항, 직장, 병원, 쇼핑 등)' },
-          level: { type: 'STRING', enum: ['초급', '중급', '고급'] },
-          situation_ko: { type: 'STRING', description: '대화 상황에 대한 한 문장 설명 (한국어)' },
+          title_ko: { type: 'STRING' },
+          title_en: { type: 'STRING' },
+          category: { type: 'STRING' },
+          level: { type: 'STRING' },
+          situation_ko: { type: 'STRING' },
           dialogue: {
             type: 'ARRAY',
             items: {
               type: 'OBJECT',
               properties: {
-                speaker: { type: 'STRING', description: '예: A 또는 B' },
+                speaker: { type: 'STRING' },
                 en: { type: 'STRING' },
                 ko: { type: 'STRING' },
               },
