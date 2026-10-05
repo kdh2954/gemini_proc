@@ -1,11 +1,28 @@
 import { useState } from 'react'
-import { validateApiKey, DEFAULT_MODEL } from '../lib/gemini'
+import { validateApiKey, listAvailableModels, DEFAULT_MODEL } from '../lib/gemini'
 
 export default function ApiKeySetup({ initialKey, initialModel, onSave }) {
   const [apiKey, setApiKey] = useState(initialKey ?? '')
   const [model, setModel] = useState(initialModel || DEFAULT_MODEL)
   const [checking, setChecking] = useState(false)
   const [status, setStatus] = useState(null)
+  const [listingModels, setListingModels] = useState(false)
+  const [modelList, setModelList] = useState(null)
+  const [modelListError, setModelListError] = useState(null)
+
+  async function handleListModels() {
+    setListingModels(true)
+    setModelListError(null)
+    setModelList(null)
+    try {
+      const models = await listAvailableModels({ apiKey: apiKey.trim() })
+      setModelList(models)
+    } catch (e) {
+      setModelListError(e.message ?? '모델 목록을 가져오지 못했습니다.')
+    } finally {
+      setListingModels(false)
+    }
+  }
 
   async function handleSave(e) {
     e.preventDefault()
@@ -69,6 +86,40 @@ export default function ApiKeySetup({ initialKey, initialModel, onSave }) {
       >
         Gemini API 키 발급받기 →
       </a>
+
+      <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800">
+        <button
+          type="button"
+          onClick={handleListModels}
+          disabled={!apiKey.trim() || listingModels}
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          {listingModels ? '확인 중...' : '🔍 이 키로 사용 가능한 모델 확인'}
+        </button>
+
+        {modelListError && (
+          <p className="mt-2 whitespace-pre-wrap break-words text-xs text-red-600 dark:text-red-400">
+            {modelListError}
+          </p>
+        )}
+
+        {modelList && (
+          <ul className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200 text-xs dark:border-slate-700">
+            {modelList.length === 0 && (
+              <li className="px-2 py-1.5 text-slate-500 dark:text-slate-400">사용 가능한 모델이 없습니다.</li>
+            )}
+            {modelList.map((m) => (
+              <li
+                key={m.name}
+                className="flex items-center justify-between gap-2 border-b border-slate-100 px-2 py-1.5 last:border-0 dark:border-slate-800"
+              >
+                <span className="font-mono text-slate-700 dark:text-slate-300">{m.name}</span>
+                <span className="shrink-0 text-slate-400">{m.supportedGenerationMethods.join(', ')}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }

@@ -186,6 +186,22 @@ export async function generateDailyConversations({ apiKey, model = DEFAULT_MODEL
   }))
 }
 
+export async function listAvailableModels({ apiKey }) {
+  if (!apiKey) throw new Error('API 키를 입력해주세요.')
+  const res = await fetch(`${API_BASE}/models?pageSize=200`, {
+    headers: { 'x-goog-api-key': apiKey },
+  })
+  const rawText = await res.text().catch(() => '')
+  if (!res.ok) {
+    throw new GeminiError(extractErrorMessage(res.status, rawText), res.status)
+  }
+  const data = JSON.parse(rawText)
+  return (data?.models ?? []).map((m) => ({
+    name: m.name?.replace(/^models\//, '') ?? m.name,
+    supportedGenerationMethods: m.supportedGenerationMethods ?? [],
+  }))
+}
+
 export async function validateApiKey({ apiKey, model = DEFAULT_MODEL }) {
   if (!apiKey) return { ok: false, message: 'API 키를 입력해주세요.' }
   try {
