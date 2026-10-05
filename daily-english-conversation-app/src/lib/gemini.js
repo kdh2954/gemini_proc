@@ -1,45 +1,49 @@
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
-export const DEFAULT_MODEL = 'gemini-2.5-flash'
+export const DEFAULT_MODEL = 'gemini-3.8-flash'
+// 기본 모델이 혼잡할 때 순서대로 시도하는 대체 모델 (안정 버전)
+export const FALLBACK_MODELS = ['gemini-3.7-flash', 'gemini-3.6-flash']
+// 신규 사용자에게 더 이상 제공되지 않는 모델. 브라우저에 저장돼 있으면 기본 모델로 대체한다.
+export const RETIRED_MODELS = ['gemini-2.5-flash', 'models/gemini-2.5-flash']
 
 const CONVERSATION_SCHEMA = {
-  type: 'OBJECT',
+  type: 'object',
   properties: {
     conversations: {
-      type: 'ARRAY',
+      type: 'array',
       minItems: 10,
       maxItems: 10,
       items: {
-        type: 'OBJECT',
+        type: 'object',
         properties: {
-          title_ko: { type: 'STRING', description: '상황을 나타내는 한국어 제목 (예: 카페에서 주문하기)' },
-          title_en: { type: 'STRING', description: 'English title of the situation' },
-          category: { type: 'STRING', description: '카테고리 (예: 카페, 공항, 직장, 병원, 쇼핑 등)' },
-          level: { type: 'STRING', enum: ['초급', '중급', '고급'] },
-          situation_ko: { type: 'STRING', description: '대화 상황에 대한 한 문장 설명 (한국어)' },
+          title_ko: { type: 'string', description: '상황을 나타내는 한국어 제목 (예: 카페에서 주문하기)' },
+          title_en: { type: 'string', description: 'English title of the situation' },
+          category: { type: 'string', description: '카테고리 (예: 카페, 공항, 직장, 병원, 쇼핑 등)' },
+          level: { type: 'string', enum: ['초급', '중급', '고급'] },
+          situation_ko: { type: 'string', description: '대화 상황에 대한 한 문장 설명 (한국어)' },
           dialogue: {
-            type: 'ARRAY',
+            type: 'array',
             minItems: 6,
             maxItems: 10,
             items: {
-              type: 'OBJECT',
+              type: 'object',
               properties: {
-                speaker: { type: 'STRING', description: '예: A 또는 B' },
-                en: { type: 'STRING' },
-                ko: { type: 'STRING' },
+                speaker: { type: 'string', description: '예: A 또는 B' },
+                en: { type: 'string' },
+                ko: { type: 'string' },
               },
               required: ['speaker', 'en', 'ko'],
             },
           },
           key_expressions: {
-            type: 'ARRAY',
+            type: 'array',
             minItems: 3,
             maxItems: 5,
             items: {
-              type: 'OBJECT',
+              type: 'object',
               properties: {
-                phrase: { type: 'STRING' },
-                meaning_ko: { type: 'STRING' },
-                example_en: { type: 'STRING' },
+                phrase: { type: 'string' },
+                meaning_ko: { type: 'string' },
+                example_en: { type: 'string' },
               },
               required: ['phrase', 'meaning_ko', 'example_en'],
             },
@@ -74,18 +78,51 @@ ${avoidLine}
 10개의 상황은 서로 겹치지 않게 다양하게 구성해줘.`
 }
 
-async function callGemini({ apiKey, model, prompt }) {
-  const url = `${API_BASE}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
+class GeminiError extends Error {
+  constructor(message, status) {
+    super(message)
+    this.status = status
+  }
+}
 
-  const res = await fetch(url, {
+// 일시적 서버 오류(과부하 등)는 재시도하고, 계속 실패하면 대체 모델로 넘어간다.
+const RETRYABLE_STATUS = [429, 500, 503, 504]
+const ATTEMPTS_PER_MODEL = 3
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+async function callGemini({ apiKey, model, prompt, retryDelayMs = 2000 }) {
+  const models = [model, ...FALLBACK_MODELS.filter((m) => m !== model)]
+  let lastError
+  for (const m of models) {
+    for (let attempt = 1; attempt <= ATTEMPTS_PER_MODEL; attempt++) {
+      try {
+        return await requestOnce({ apiKey, model: m, prompt })
+      } catch (e) {
+        lastError = e
+        if (!RETRYABLE_STATUS.includes(e.status)) throw e
+        if (attempt < ATTEMPTS_PER_MODEL) await sleep(retryDelayMs * attempt)
+      }
+    }
+  }
+  throw new GeminiError(
+    `Gemini 서버가 일시적으로 혼잡합니다. 잠시 후 다시 시도해 주세요. (${lastError?.message ?? ''})`,
+    lastError?.status,
+  )
+}
+
+async function requestOnce({ apiKey, model, prompt }) {
+  // Interactions API (Gemini 3.x 권장 방식)
+  const res = await fetch(`${API_BASE}/interactions`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 1,
-        responseMimeType: 'application/json',
-        responseSchema: CONVERSATION_SCHEMA,
+      model,
+      input: prompt,
+      generation_config: { temperature: 1 },
+      response_format: {
+        type: 'text',
+        mime_type: 'application/json',
+        schema: CONVERSATION_SCHEMA,
       },
     }),
   })
@@ -98,11 +135,17 @@ async function callGemini({ apiKey, model, prompt }) {
     } catch {
       // ignore parse failure, keep default message
     }
-    throw new Error(message)
+    throw new GeminiError(message, res.status)
   }
 
   const data = await res.json()
-  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? ''
+  // 응답 위치: steps[].content[].text (문서 기준). SDK 형태의 output_text도 대비한다.
+  const stepText = (data?.steps ?? [])
+    .filter((s) => s?.type === 'model_output')
+    .flatMap((s) => s?.content ?? [])
+    .map((c) => c?.text ?? '')
+    .join('')
+  const text = stepText || data?.output_text || ''
   if (!text) {
     throw new Error('Gemini API 응답에서 콘텐츠를 찾을 수 없습니다.')
   }
@@ -121,10 +164,10 @@ async function callGemini({ apiKey, model, prompt }) {
   return parsed.conversations
 }
 
-export async function generateDailyConversations({ apiKey, model = DEFAULT_MODEL, avoidTitles = [] }) {
+export async function generateDailyConversations({ apiKey, model = DEFAULT_MODEL, avoidTitles = [], retryDelayMs }) {
   if (!apiKey) throw new Error('Gemini API 키가 필요합니다.')
   const prompt = buildPrompt(avoidTitles)
-  const conversations = await callGemini({ apiKey, model, prompt })
+  const conversations = await callGemini({ apiKey, model, prompt, retryDelayMs })
 
   return conversations.map((c, idx) => ({
     id: `${Date.now()}-${idx}`,
@@ -135,8 +178,8 @@ export async function generateDailyConversations({ apiKey, model = DEFAULT_MODEL
 export async function validateApiKey({ apiKey, model = DEFAULT_MODEL }) {
   if (!apiKey) return { ok: false, message: 'API 키를 입력해주세요.' }
   try {
-    const url = `${API_BASE}/models/${encodeURIComponent(model)}?key=${encodeURIComponent(apiKey)}`
-    const res = await fetch(url)
+    const url = `${API_BASE}/models/${encodeURIComponent(model)}`
+    const res = await fetch(url, { headers: { 'x-goog-api-key': apiKey } })
     if (!res.ok) {
       const body = await res.json().catch(() => null)
       return { ok: false, message: body?.error?.message ?? `API 키 확인 실패 (HTTP ${res.status})` }
