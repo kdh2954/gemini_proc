@@ -116,8 +116,8 @@ async function requestOnce({ apiKey, model, prompt }) {
     headers: {
       'Content-Type': 'application/json',
       'x-goog-api-key': apiKey,
-      // Interactions API는 Api-Revision 헤더로 요청 스키마 버전을 지정해야 한다.
-      'Api-Revision': '2026-05-20',
+      // 주의: 'Api-Revision' 커스텀 헤더를 추가하면 브라우저 CORS 프리플라이트가
+      // 막혀 요청 자체가 전송되지 않는다("Load failed"). 브라우저 직접 호출에서는 빼야 한다.
     },
     body: JSON.stringify({
       model,
