@@ -1,47 +1,49 @@
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
-export const DEFAULT_MODEL = 'gemini-2.5-flash'
+export const DEFAULT_MODEL = 'gemini-3.8-flash'
 
-// Gemini의 Schema.type은 반드시 대문자(STRING/OBJECT/ARRAY 등) enum 값이어야 한다.
-// 소문자(JSON Schema 스타일)를 보내면 "Request contains an invalid argument" 400 오류가 난다.
+// gemini-2.5-flash는 신규 사용자에게 더 이상 제공되지 않는다(구글 API가 직접 안내).
+// 구글은 gemini-3.8-flash + Interactions API(POST /v1beta/interactions) 사용을 권장한다.
+// Interactions API의 response_format.schema는 Gemini의 구 generateContent와 달리
+// 표준 JSON Schema 표기(소문자 string/object/array)를 사용한다.
 const CONVERSATION_SCHEMA = {
-  type: 'OBJECT',
+  type: 'object',
   properties: {
     conversations: {
-      type: 'ARRAY',
+      type: 'array',
       minItems: 10,
       maxItems: 10,
       items: {
-        type: 'OBJECT',
+        type: 'object',
         properties: {
-          title_ko: { type: 'STRING', description: '상황을 나타내는 한국어 제목 (예: 카페에서 주문하기)' },
-          title_en: { type: 'STRING', description: 'English title of the situation' },
-          category: { type: 'STRING', description: '카테고리 (예: 카페, 공항, 직장, 병원, 쇼핑 등)' },
-          level: { type: 'STRING', enum: ['초급', '중급', '고급'] },
-          situation_ko: { type: 'STRING', description: '대화 상황에 대한 한 문장 설명 (한국어)' },
+          title_ko: { type: 'string', description: '상황을 나타내는 한국어 제목 (예: 카페에서 주문하기)' },
+          title_en: { type: 'string', description: 'English title of the situation' },
+          category: { type: 'string', description: '카테고리 (예: 카페, 공항, 직장, 병원, 쇼핑 등)' },
+          level: { type: 'string', enum: ['초급', '중급', '고급'] },
+          situation_ko: { type: 'string', description: '대화 상황에 대한 한 문장 설명 (한국어)' },
           dialogue: {
-            type: 'ARRAY',
+            type: 'array',
             minItems: 6,
             maxItems: 10,
             items: {
-              type: 'OBJECT',
+              type: 'object',
               properties: {
-                speaker: { type: 'STRING', description: '예: A 또는 B' },
-                en: { type: 'STRING' },
-                ko: { type: 'STRING' },
+                speaker: { type: 'string', description: '예: A 또는 B' },
+                en: { type: 'string' },
+                ko: { type: 'string' },
               },
               required: ['speaker', 'en', 'ko'],
             },
           },
           key_expressions: {
-            type: 'ARRAY',
+            type: 'array',
             minItems: 3,
             maxItems: 5,
             items: {
-              type: 'OBJECT',
+              type: 'object',
               properties: {
-                phrase: { type: 'STRING' },
-                meaning_ko: { type: 'STRING' },
-                example_en: { type: 'STRING' },
+                phrase: { type: 'string' },
+                meaning_ko: { type: 'string' },
+                example_en: { type: 'string' },
               },
               required: ['phrase', 'meaning_ko', 'example_en'],
             },
@@ -88,16 +90,26 @@ const RETRYABLE_STATUS = [429, 500, 503, 504]
 const MAX_ATTEMPTS = 3
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
+function extractErrorMessage(body, status) {
+  let message = body?.error?.message ?? `Gemini API 요청 실패 (HTTP ${status})`
+  if (body?.error?.status) message += ` [${body.error.status}]`
+  const reasons = (body?.error?.details ?? []).map((d) => d?.reason).filter(Boolean)
+  if (reasons.length > 0) message += ` - reason: ${reasons.join(', ')}`
+  return message
+}
+
 async function requestOnce({ apiKey, model, prompt }) {
-  const res = await fetch(`${API_BASE}/models/${encodeURIComponent(model)}:generateContent`, {
+  const res = await fetch(`${API_BASE}/interactions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 1,
-        responseMimeType: 'application/json',
-        responseSchema: CONVERSATION_SCHEMA,
+      model,
+      input: prompt,
+      generation_config: { temperature: 1 },
+      response_format: {
+        type: 'text',
+        mime_type: 'application/json',
+        schema: CONVERSATION_SCHEMA,
       },
     }),
   })
@@ -106,14 +118,7 @@ async function requestOnce({ apiKey, model, prompt }) {
     let message = `Gemini API 요청 실패 (HTTP ${res.status})`
     try {
       const errBody = await res.json()
-      if (errBody?.error?.message) {
-        message = errBody.error.message
-        if (errBody.error.status) message += ` [${errBody.error.status}]`
-        const reasons = (errBody.error.details ?? [])
-          .map((d) => d?.reason)
-          .filter(Boolean)
-        if (reasons.length > 0) message += ` - reason: ${reasons.join(', ')}`
-      }
+      message = extractErrorMessage(errBody, res.status)
     } catch {
       // ignore parse failure, keep default message
     }
@@ -121,7 +126,12 @@ async function requestOnce({ apiKey, model, prompt }) {
   }
 
   const data = await res.json()
-  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? ''
+  const text = (data?.steps ?? [])
+    .filter((s) => s?.type === 'model_output')
+    .flatMap((s) => s?.content ?? [])
+    .filter((c) => c?.type === 'text')
+    .map((c) => c?.text ?? '')
+    .join('')
   if (!text) {
     throw new Error('Gemini API 응답에서 콘텐츠를 찾을 수 없습니다.')
   }
@@ -172,11 +182,7 @@ export async function validateApiKey({ apiKey, model = DEFAULT_MODEL }) {
     const res = await fetch(url, { headers: { 'x-goog-api-key': apiKey } })
     if (!res.ok) {
       const body = await res.json().catch(() => null)
-      let message = body?.error?.message ?? `API 키 확인 실패 (HTTP ${res.status})`
-      if (body?.error?.status) message += ` [${body.error.status}]`
-      const reasons = (body?.error?.details ?? []).map((d) => d?.reason).filter(Boolean)
-      if (reasons.length > 0) message += ` - reason: ${reasons.join(', ')}`
-      return { ok: false, message }
+      return { ok: false, message: extractErrorMessage(body, res.status) }
     }
     return { ok: true }
   } catch (e) {
