@@ -9,8 +9,6 @@ const CONVERSATION_SCHEMA = {
   properties: {
     conversations: {
       type: 'ARRAY',
-      minItems: 10,
-      maxItems: 10,
       items: {
         type: 'OBJECT',
         properties: {
@@ -21,8 +19,6 @@ const CONVERSATION_SCHEMA = {
           situation_ko: { type: 'STRING', description: '대화 상황에 대한 한 문장 설명 (한국어)' },
           dialogue: {
             type: 'ARRAY',
-            minItems: 6,
-            maxItems: 10,
             items: {
               type: 'OBJECT',
               properties: {
@@ -35,8 +31,6 @@ const CONVERSATION_SCHEMA = {
           },
           key_expressions: {
             type: 'ARRAY',
-            minItems: 3,
-            maxItems: 5,
             items: {
               type: 'OBJECT',
               properties: {
