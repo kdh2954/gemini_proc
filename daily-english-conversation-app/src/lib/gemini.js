@@ -113,7 +113,12 @@ function extractErrorMessage(status, rawText) {
 async function requestOnce({ apiKey, model, prompt }) {
   const res = await fetch(`${API_BASE}/interactions`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+      // Interactions API는 Api-Revision 헤더로 요청 스키마 버전을 지정해야 한다.
+      'Api-Revision': '2026-05-20',
+    },
     body: JSON.stringify({
       model,
       input: prompt,
