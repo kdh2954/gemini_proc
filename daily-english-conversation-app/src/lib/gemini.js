@@ -108,7 +108,11 @@ async function requestOnce({ apiKey, model, prompt }) {
       const errBody = await res.json()
       if (errBody?.error?.message) {
         message = errBody.error.message
-        if (errBody.error.status) message += ` (${errBody.error.status})`
+        if (errBody.error.status) message += ` [${errBody.error.status}]`
+        const reasons = (errBody.error.details ?? [])
+          .map((d) => d?.reason)
+          .filter(Boolean)
+        if (reasons.length > 0) message += ` - reason: ${reasons.join(', ')}`
       }
     } catch {
       // ignore parse failure, keep default message
@@ -168,7 +172,11 @@ export async function validateApiKey({ apiKey, model = DEFAULT_MODEL }) {
     const res = await fetch(url, { headers: { 'x-goog-api-key': apiKey } })
     if (!res.ok) {
       const body = await res.json().catch(() => null)
-      return { ok: false, message: body?.error?.message ?? `API 키 확인 실패 (HTTP ${res.status})` }
+      let message = body?.error?.message ?? `API 키 확인 실패 (HTTP ${res.status})`
+      if (body?.error?.status) message += ` [${body.error.status}]`
+      const reasons = (body?.error?.details ?? []).map((d) => d?.reason).filter(Boolean)
+      if (reasons.length > 0) message += ` - reason: ${reasons.join(', ')}`
+      return { ok: false, message }
     }
     return { ok: true }
   } catch (e) {
