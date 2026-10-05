@@ -209,6 +209,33 @@ export async function testSimpleGeneration({ apiKey, model }) {
   return text || '(빈 응답)'
 }
 
+// 아주 단순한 responseSchema로 구조화된 출력 자체가 되는지 확인하는 진단용 함수.
+export async function testSimpleSchema({ apiKey, model }) {
+  if (!apiKey) throw new Error('API 키를 입력해주세요.')
+  const res = await fetch(`${API_BASE}/models/${encodeURIComponent(model)}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: 'Say hello.' }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: { greeting: { type: 'STRING' } },
+          required: ['greeting'],
+        },
+      },
+    }),
+  })
+  const rawText = await res.text().catch(() => '')
+  if (!res.ok) {
+    throw new GeminiError(extractErrorMessage(res.status, rawText), res.status)
+  }
+  const data = JSON.parse(rawText)
+  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? ''
+  return text || '(빈 응답)'
+}
+
 export async function validateApiKey({ apiKey, model = DEFAULT_MODEL }) {
   if (!apiKey) return { ok: false, message: 'API 키를 입력해주세요.' }
   try {

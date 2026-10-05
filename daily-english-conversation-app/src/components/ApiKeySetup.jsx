@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { validateApiKey, listAvailableModels, testSimpleGeneration, DEFAULT_MODEL } from '../lib/gemini'
+import { validateApiKey, listAvailableModels, testSimpleGeneration, testSimpleSchema, DEFAULT_MODEL } from '../lib/gemini'
 
 export default function ApiKeySetup({ initialKey, initialModel, onSave }) {
   const [apiKey, setApiKey] = useState(initialKey ?? '')
@@ -11,6 +11,8 @@ export default function ApiKeySetup({ initialKey, initialModel, onSave }) {
   const [modelListError, setModelListError] = useState(null)
   const [testingSimple, setTestingSimple] = useState(false)
   const [simpleResult, setSimpleResult] = useState(null)
+  const [testingSchema, setTestingSchema] = useState(false)
+  const [schemaResult, setSchemaResult] = useState(null)
 
   async function handleListModels() {
     setListingModels(true)
@@ -36,6 +38,19 @@ export default function ApiKeySetup({ initialKey, initialModel, onSave }) {
       setSimpleResult({ ok: false, message: e.message ?? '테스트 실패' })
     } finally {
       setTestingSimple(false)
+    }
+  }
+
+  async function handleTestSchema() {
+    setTestingSchema(true)
+    setSchemaResult(null)
+    try {
+      const text = await testSimpleSchema({ apiKey: apiKey.trim(), model: (model.trim() || DEFAULT_MODEL) })
+      setSchemaResult({ ok: true, message: text })
+    } catch (e) {
+      setSchemaResult({ ok: false, message: e.message ?? '테스트 실패' })
+    } finally {
+      setTestingSchema(false)
     }
   }
 
@@ -118,6 +133,24 @@ export default function ApiKeySetup({ initialKey, initialModel, onSave }) {
             }`}
           >
             {simpleResult.message}
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={handleTestSchema}
+          disabled={!apiKey.trim() || testingSchema}
+          className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          {testingSchema ? '테스트 중...' : '🧪 아주 간단한 스키마로 테스트'}
+        </button>
+        {schemaResult && (
+          <p
+            className={`mt-2 whitespace-pre-wrap break-words text-xs ${
+              schemaResult.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+            }`}
+          >
+            {schemaResult.message}
           </p>
         )}
 
