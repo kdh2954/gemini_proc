@@ -1,49 +1,47 @@
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
-export const DEFAULT_MODEL = 'gemini-3.8-flash'
+export const DEFAULT_MODEL = 'gemini-2.5-flash'
 
-// gemini-2.5-flash는 신규 사용자에게 더 이상 제공되지 않는다(구글 API가 직접 안내).
-// 구글은 gemini-3.8-flash + Interactions API(POST /v1beta/interactions) 사용을 권장한다.
-// Interactions API의 response_format.schema는 Gemini의 구 generateContent와 달리
-// 표준 JSON Schema 표기(소문자 string/object/array)를 사용한다.
+// ListModels로 실제 확인됨: 이 모델이 generateContent를 지원한다(2026-10 기준).
+// generateContent의 responseSchema.type은 반드시 대문자 enum(STRING/OBJECT/ARRAY)이어야 한다.
 const CONVERSATION_SCHEMA = {
-  type: 'object',
+  type: 'OBJECT',
   properties: {
     conversations: {
-      type: 'array',
+      type: 'ARRAY',
       minItems: 10,
       maxItems: 10,
       items: {
-        type: 'object',
+        type: 'OBJECT',
         properties: {
-          title_ko: { type: 'string', description: '상황을 나타내는 한국어 제목 (예: 카페에서 주문하기)' },
-          title_en: { type: 'string', description: 'English title of the situation' },
-          category: { type: 'string', description: '카테고리 (예: 카페, 공항, 직장, 병원, 쇼핑 등)' },
-          level: { type: 'string', enum: ['초급', '중급', '고급'] },
-          situation_ko: { type: 'string', description: '대화 상황에 대한 한 문장 설명 (한국어)' },
+          title_ko: { type: 'STRING', description: '상황을 나타내는 한국어 제목 (예: 카페에서 주문하기)' },
+          title_en: { type: 'STRING', description: 'English title of the situation' },
+          category: { type: 'STRING', description: '카테고리 (예: 카페, 공항, 직장, 병원, 쇼핑 등)' },
+          level: { type: 'STRING', enum: ['초급', '중급', '고급'] },
+          situation_ko: { type: 'STRING', description: '대화 상황에 대한 한 문장 설명 (한국어)' },
           dialogue: {
-            type: 'array',
+            type: 'ARRAY',
             minItems: 6,
             maxItems: 10,
             items: {
-              type: 'object',
+              type: 'OBJECT',
               properties: {
-                speaker: { type: 'string', description: '예: A 또는 B' },
-                en: { type: 'string' },
-                ko: { type: 'string' },
+                speaker: { type: 'STRING', description: '예: A 또는 B' },
+                en: { type: 'STRING' },
+                ko: { type: 'STRING' },
               },
               required: ['speaker', 'en', 'ko'],
             },
           },
           key_expressions: {
-            type: 'array',
+            type: 'ARRAY',
             minItems: 3,
             maxItems: 5,
             items: {
-              type: 'object',
+              type: 'OBJECT',
               properties: {
-                phrase: { type: 'string' },
-                meaning_ko: { type: 'string' },
-                example_en: { type: 'string' },
+                phrase: { type: 'STRING' },
+                meaning_ko: { type: 'STRING' },
+                example_en: { type: 'STRING' },
               },
               required: ['phrase', 'meaning_ko', 'example_en'],
             },
@@ -111,22 +109,15 @@ function extractErrorMessage(status, rawText) {
 }
 
 async function requestOnce({ apiKey, model, prompt }) {
-  const res = await fetch(`${API_BASE}/interactions`, {
+  const res = await fetch(`${API_BASE}/models/${encodeURIComponent(model)}:generateContent`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey,
-      // 주의: 'Api-Revision' 커스텀 헤더를 추가하면 브라우저 CORS 프리플라이트가
-      // 막혀 요청 자체가 전송되지 않는다("Load failed"). 브라우저 직접 호출에서는 빼야 한다.
-    },
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({
-      model,
-      input: prompt,
-      generation_config: { temperature: 1 },
-      response_format: {
-        type: 'text',
-        mime_type: 'application/json',
-        schema: CONVERSATION_SCHEMA,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 1,
+        responseMimeType: 'application/json',
+        responseSchema: CONVERSATION_SCHEMA,
       },
     }),
   })
@@ -137,12 +128,7 @@ async function requestOnce({ apiKey, model, prompt }) {
   }
 
   const data = await res.json()
-  const text = (data?.steps ?? [])
-    .filter((s) => s?.type === 'model_output')
-    .flatMap((s) => s?.content ?? [])
-    .filter((c) => c?.type === 'text')
-    .map((c) => c?.text ?? '')
-    .join('')
+  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? ''
   if (!text) {
     throw new Error('Gemini API 응답에서 콘텐츠를 찾을 수 없습니다.')
   }
