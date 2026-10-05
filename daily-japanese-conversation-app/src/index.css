@@ -1,0 +1,35 @@
+@import 'tailwindcss';
+
+:root {
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  html {
+    color-scheme: dark;
+  }
+}
+
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    'Segoe UI',
+    Roboto,
+    'Apple SD Gothic Neo',
+    'Noto Sans KR',
+    sans-serif;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 130, 0.35);
+  border-radius: 999px;
+}
