@@ -236,6 +236,52 @@ export async function testSimpleSchema({ apiKey, model }) {
   return text || '(빈 응답)'
 }
 
+// 실제 CONVERSATION_SCHEMA와 같은 깊이(object > array > object > array > object)로
+// 중첩됐지만 속성은 최소화한 스키마. 깊이 때문에 실패하는지 확인하기 위한 진단용 함수.
+export async function testNestedSchema({ apiKey, model }) {
+  if (!apiKey) throw new Error('API 키를 입력해주세요.')
+  const res = await fetch(`${API_BASE}/models/${encodeURIComponent(model)}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: 'Make up one item.' }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            items: {
+              type: 'ARRAY',
+              items: {
+                type: 'OBJECT',
+                properties: {
+                  lines: {
+                    type: 'ARRAY',
+                    items: {
+                      type: 'OBJECT',
+                      properties: { text: { type: 'STRING' } },
+                      required: ['text'],
+                    },
+                  },
+                },
+                required: ['lines'],
+              },
+            },
+          },
+          required: ['items'],
+        },
+      },
+    }),
+  })
+  const rawText = await res.text().catch(() => '')
+  if (!res.ok) {
+    throw new GeminiError(extractErrorMessage(res.status, rawText), res.status)
+  }
+  const data = JSON.parse(rawText)
+  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? ''
+  return text || '(빈 응답)'
+}
+
 export async function validateApiKey({ apiKey, model = DEFAULT_MODEL }) {
   if (!apiKey) return { ok: false, message: 'API 키를 입력해주세요.' }
   try {

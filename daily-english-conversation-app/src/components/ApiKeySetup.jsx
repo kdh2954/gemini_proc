@@ -1,5 +1,12 @@
 import { useState } from 'react'
-import { validateApiKey, listAvailableModels, testSimpleGeneration, testSimpleSchema, DEFAULT_MODEL } from '../lib/gemini'
+import {
+  validateApiKey,
+  listAvailableModels,
+  testSimpleGeneration,
+  testSimpleSchema,
+  testNestedSchema,
+  DEFAULT_MODEL,
+} from '../lib/gemini'
 
 export default function ApiKeySetup({ initialKey, initialModel, onSave }) {
   const [apiKey, setApiKey] = useState(initialKey ?? '')
@@ -13,6 +20,8 @@ export default function ApiKeySetup({ initialKey, initialModel, onSave }) {
   const [simpleResult, setSimpleResult] = useState(null)
   const [testingSchema, setTestingSchema] = useState(false)
   const [schemaResult, setSchemaResult] = useState(null)
+  const [testingNested, setTestingNested] = useState(false)
+  const [nestedResult, setNestedResult] = useState(null)
 
   async function handleListModels() {
     setListingModels(true)
@@ -51,6 +60,19 @@ export default function ApiKeySetup({ initialKey, initialModel, onSave }) {
       setSchemaResult({ ok: false, message: e.message ?? '테스트 실패' })
     } finally {
       setTestingSchema(false)
+    }
+  }
+
+  async function handleTestNested() {
+    setTestingNested(true)
+    setNestedResult(null)
+    try {
+      const text = await testNestedSchema({ apiKey: apiKey.trim(), model: (model.trim() || DEFAULT_MODEL) })
+      setNestedResult({ ok: true, message: text })
+    } catch (e) {
+      setNestedResult({ ok: false, message: e.message ?? '테스트 실패' })
+    } finally {
+      setTestingNested(false)
     }
   }
 
@@ -151,6 +173,24 @@ export default function ApiKeySetup({ initialKey, initialModel, onSave }) {
             }`}
           >
             {schemaResult.message}
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={handleTestNested}
+          disabled={!apiKey.trim() || testingNested}
+          className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          {testingNested ? '테스트 중...' : '🧪 같은 깊이로 중첩된 스키마 테스트'}
+        </button>
+        {nestedResult && (
+          <p
+            className={`mt-2 whitespace-pre-wrap break-words text-xs ${
+              nestedResult.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+            }`}
+          >
+            {nestedResult.message}
           </p>
         )}
 
