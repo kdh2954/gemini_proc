@@ -5,16 +5,7 @@ import ProgressStats from './components/ProgressStats'
 import DailyConversations from './components/DailyConversations'
 import HistoryView from './components/HistoryView'
 import { getApiKey, setApiKey, getModel, setModel, getStats, todayKey } from './lib/storage'
-import { DEFAULT_MODEL, RETIRED_MODELS } from './lib/gemini'
-
-function loadModel() {
-  const saved = getModel()
-  if (!saved || RETIRED_MODELS.includes(saved)) {
-    setModel(DEFAULT_MODEL)
-    return DEFAULT_MODEL
-  }
-  return saved
-}
+import { DEFAULT_MODEL } from './lib/gemini'
 
 function useStats() {
   const [stats, setStats] = useState(() => getStats())
@@ -24,7 +15,7 @@ function useStats() {
 
 export default function App() {
   const [apiKey, setApiKeyState] = useState(() => getApiKey())
-  const [model, setModelState] = useState(loadModel)
+  const [model, setModelState] = useState(() => getModel() || DEFAULT_MODEL)
   const [view, setView] = useState('today')
   const [stats, refreshStats] = useStats()
   const dateKey = todayKey()

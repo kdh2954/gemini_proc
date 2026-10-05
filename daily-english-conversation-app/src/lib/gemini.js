@@ -1,49 +1,47 @@
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
-export const DEFAULT_MODEL = 'gemini-3.8-flash'
-// 기본 모델이 혼잡할 때 순서대로 시도하는 대체 모델 (안정 버전)
-export const FALLBACK_MODELS = ['gemini-3.7-flash', 'gemini-3.6-flash']
-// 신규 사용자에게 더 이상 제공되지 않는 모델. 브라우저에 저장돼 있으면 기본 모델로 대체한다.
-export const RETIRED_MODELS = ['gemini-2.5-flash', 'models/gemini-2.5-flash']
+export const DEFAULT_MODEL = 'gemini-2.5-flash'
 
+// Gemini의 Schema.type은 반드시 대문자(STRING/OBJECT/ARRAY 등) enum 값이어야 한다.
+// 소문자(JSON Schema 스타일)를 보내면 "Request contains an invalid argument" 400 오류가 난다.
 const CONVERSATION_SCHEMA = {
-  type: 'object',
+  type: 'OBJECT',
   properties: {
     conversations: {
-      type: 'array',
+      type: 'ARRAY',
       minItems: 10,
       maxItems: 10,
       items: {
-        type: 'object',
+        type: 'OBJECT',
         properties: {
-          title_ko: { type: 'string', description: '상황을 나타내는 한국어 제목 (예: 카페에서 주문하기)' },
-          title_en: { type: 'string', description: 'English title of the situation' },
-          category: { type: 'string', description: '카테고리 (예: 카페, 공항, 직장, 병원, 쇼핑 등)' },
-          level: { type: 'string', enum: ['초급', '중급', '고급'] },
-          situation_ko: { type: 'string', description: '대화 상황에 대한 한 문장 설명 (한국어)' },
+          title_ko: { type: 'STRING', description: '상황을 나타내는 한국어 제목 (예: 카페에서 주문하기)' },
+          title_en: { type: 'STRING', description: 'English title of the situation' },
+          category: { type: 'STRING', description: '카테고리 (예: 카페, 공항, 직장, 병원, 쇼핑 등)' },
+          level: { type: 'STRING', enum: ['초급', '중급', '고급'] },
+          situation_ko: { type: 'STRING', description: '대화 상황에 대한 한 문장 설명 (한국어)' },
           dialogue: {
-            type: 'array',
+            type: 'ARRAY',
             minItems: 6,
             maxItems: 10,
             items: {
-              type: 'object',
+              type: 'OBJECT',
               properties: {
-                speaker: { type: 'string', description: '예: A 또는 B' },
-                en: { type: 'string' },
-                ko: { type: 'string' },
+                speaker: { type: 'STRING', description: '예: A 또는 B' },
+                en: { type: 'STRING' },
+                ko: { type: 'STRING' },
               },
               required: ['speaker', 'en', 'ko'],
             },
           },
           key_expressions: {
-            type: 'array',
+            type: 'ARRAY',
             minItems: 3,
             maxItems: 5,
             items: {
-              type: 'object',
+              type: 'OBJECT',
               properties: {
-                phrase: { type: 'string' },
-                meaning_ko: { type: 'string' },
-                example_en: { type: 'string' },
+                phrase: { type: 'STRING' },
+                meaning_ko: { type: 'STRING' },
+                example_en: { type: 'STRING' },
               },
               required: ['phrase', 'meaning_ko', 'example_en'],
             },
@@ -71,7 +69,7 @@ ${avoidLine}
 각 대화는 다음 조건을 지켜줘:
 - 두 화자(A, B) 사이의 자연스럽고 실용적인 대화 6~10줄
 - 각 줄마다 영어 원문과 정확한 한국어 번역을 함께 제공
-- 초급/중급/고급 난이도를 골고루 섞어서 구성 (하루 10개 중 다양한 난이도 포함)
+- 초급/중급/고급 난이도를 골고루 섞어서 구성 (하루 10개 안에 다양한 난이도 포함)
 - 대화에서 실제로 쓰인 핵심 표현 3~5개를 뽑아 의미와 예문을 함께 제공
 - 반드시 요청된 JSON 스키마 형식으로만 응답
 
@@ -85,44 +83,21 @@ class GeminiError extends Error {
   }
 }
 
-// 일시적 서버 오류(과부하 등)는 재시도하고, 계속 실패하면 대체 모델로 넘어간다.
+// 일시적 서버 오류(과부하 등)는 잠깐 대기 후 같은 모델로 재시도한다.
 const RETRYABLE_STATUS = [429, 500, 503, 504]
-const ATTEMPTS_PER_MODEL = 3
+const MAX_ATTEMPTS = 3
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-async function callGemini({ apiKey, model, prompt, retryDelayMs = 2000 }) {
-  const models = [model, ...FALLBACK_MODELS.filter((m) => m !== model)]
-  let lastError
-  for (const m of models) {
-    for (let attempt = 1; attempt <= ATTEMPTS_PER_MODEL; attempt++) {
-      try {
-        return await requestOnce({ apiKey, model: m, prompt })
-      } catch (e) {
-        lastError = e
-        if (!RETRYABLE_STATUS.includes(e.status)) throw e
-        if (attempt < ATTEMPTS_PER_MODEL) await sleep(retryDelayMs * attempt)
-      }
-    }
-  }
-  throw new GeminiError(
-    `Gemini 서버가 일시적으로 혼잡합니다. 잠시 후 다시 시도해 주세요. (${lastError?.message ?? ''})`,
-    lastError?.status,
-  )
-}
-
 async function requestOnce({ apiKey, model, prompt }) {
-  // Interactions API (Gemini 3.x 권장 방식)
-  const res = await fetch(`${API_BASE}/interactions`, {
+  const res = await fetch(`${API_BASE}/models/${encodeURIComponent(model)}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({
-      model,
-      input: prompt,
-      generation_config: { temperature: 1 },
-      response_format: {
-        type: 'text',
-        mime_type: 'application/json',
-        schema: CONVERSATION_SCHEMA,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 1,
+        responseMimeType: 'application/json',
+        responseSchema: CONVERSATION_SCHEMA,
       },
     }),
   })
@@ -131,7 +106,10 @@ async function requestOnce({ apiKey, model, prompt }) {
     let message = `Gemini API 요청 실패 (HTTP ${res.status})`
     try {
       const errBody = await res.json()
-      if (errBody?.error?.message) message = errBody.error.message
+      if (errBody?.error?.message) {
+        message = errBody.error.message
+        if (errBody.error.status) message += ` (${errBody.error.status})`
+      }
     } catch {
       // ignore parse failure, keep default message
     }
@@ -139,13 +117,7 @@ async function requestOnce({ apiKey, model, prompt }) {
   }
 
   const data = await res.json()
-  // 응답 위치: steps[].content[].text (문서 기준). SDK 형태의 output_text도 대비한다.
-  const stepText = (data?.steps ?? [])
-    .filter((s) => s?.type === 'model_output')
-    .flatMap((s) => s?.content ?? [])
-    .map((c) => c?.text ?? '')
-    .join('')
-  const text = stepText || data?.output_text || ''
+  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? ''
   if (!text) {
     throw new Error('Gemini API 응답에서 콘텐츠를 찾을 수 없습니다.')
   }
@@ -162,6 +134,20 @@ async function requestOnce({ apiKey, model, prompt }) {
   }
 
   return parsed.conversations
+}
+
+async function callGemini({ apiKey, model, prompt, retryDelayMs = 2000 }) {
+  let lastError
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      return await requestOnce({ apiKey, model, prompt })
+    } catch (e) {
+      lastError = e
+      if (!RETRYABLE_STATUS.includes(e.status) || attempt === MAX_ATTEMPTS) throw e
+      await sleep(retryDelayMs * attempt)
+    }
+  }
+  throw lastError
 }
 
 export async function generateDailyConversations({ apiKey, model = DEFAULT_MODEL, avoidTitles = [], retryDelayMs }) {
